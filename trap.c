@@ -24,6 +24,10 @@ tvinit(void)
   SETGATE(idt[T_SYSCALL], 1, SEG_KCODE<<3, vectors[T_SYSCALL], DPL_USER);
 
   initlock(&tickslock, "time");
+
+  // TODO: Initialise this in a better place
+  // initialise lock for read count sys call
+  init_readcount_lock();
 }
 
 void
