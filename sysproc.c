@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "pstat.h"
 
 int
 sys_fork(void)
@@ -89,3 +90,20 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// populates a pstat struct with information about all running processes
+int
+sys_getpinfo(void) {
+	// define pstat struct
+	struct pstat *procstat;
+
+	// try to fetch pstat struct from args
+	if(argptr(0, (void *) &procstat, sizeof(*procstat)) < 0)
+	  return -1;
+
+	getpinfo((void *)procstat);
+
+	// return 0 on success
+	return 0;
+}
+
