@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "pstat.h"
+#include "random.h"
 
 struct {
   struct spinlock lock;
@@ -73,7 +74,7 @@ myproc(void) {
 // state required to run in the kernel.
 // Otherwise return 0.
 static struct proc*
-allocproc(void)
+allocproc(int *num_tickets)
 {
   struct proc *p;
   char *sp;
@@ -92,8 +93,15 @@ found:
   p->pid = nextpid++;
 
   // initialising lottery tickets
-  p->tickets = 1;
+  if (num_tickets) {
+	  p->tickets = *num_tickets;
+  } else {
+	  // set default to value 1 otherwise
+	  p->tickets = 1;
+  }
   p->ticks = 0;
+  // increment total tickets given out by 1
+  ptable.total_tickets++;
 
   release(&ptable.lock);
 
@@ -126,10 +134,11 @@ found:
 void
 userinit(void)
 {
+  int default_tickets = 1;
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
+  p = allocproc(&default_tickets);
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -191,7 +200,7 @@ fork(void)
   struct proc *curproc = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc(&curproc->tickets)) == 0){
     return -1;
   }
 
@@ -269,6 +278,12 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+
+  // Clean up tickets for this process
+  // decrement total number of tickets we handed out
+  ptable.total_tickets -= curproc->tickets;
+
+
   sched();
   panic("zombie exit");
 }
@@ -326,7 +341,7 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
-scheduler(void)
+scheduler_without_lottery(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
@@ -355,6 +370,67 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+    }
+    release(&ptable.lock);
+
+  }
+}
+
+// Implementation of scheduler with lottery ticket system
+// TODO: Consider how we are tracking the num of tickets globally
+// There will probably be an inefficiency the lottery winner is of a big PID
+// but it is not runnable. Might need to be tracking the num of tickets being held
+// by runnable processes instead.
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+    acquire(&ptable.lock);
+
+    // select the winning ticket
+    int winner = randint(ptable.total_tickets);
+    // total tickets seen so far
+    int tickets_seen = 0;
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	if(p->state == UNUSED) {
+		continue;
+	}
+
+	// if process is used, increment num tickets seen
+	tickets_seen += p->tickets;
+
+	// if we havent found the winning process yet, or the
+	// process is not runnable, skip.
+        if(p->state != RUNNABLE || tickets_seen < winner)
+          continue;
+
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+	// add num of ticks received by process
+	p->ticks++;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+
+	// restart the infinite loop to find a new winner
+	break;
     }
     release(&ptable.lock);
 
@@ -570,6 +646,7 @@ void settickets(int num_tickets) {
 	acquire(&ptable.lock);
 
 	struct proc *curr_proc = myproc();
+	cprintf("pid of curr proc is %d\n", curr_proc->pid);
 
 	original_num_tickets = curr_proc->tickets;
 	difference = num_tickets - original_num_tickets;

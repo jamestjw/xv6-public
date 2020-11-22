@@ -3,20 +3,44 @@
 #include "user.h"
 #include "pstat.h" 
 
+void pid_info(int pid) {
+	struct pstat p;
+	int res;
+	if ((res = getpinfo(&p)) != 0) {
+		printf(1, "failed to get pinfo\n");
+		exit();
+	}
+	printf(1, "Size of pstat struct is  %d\n", sizeof(p));
+
+	int idx = 0;
+	for (idx = 0; idx < NPROC; idx++) {
+		if (pid != p.pid[idx]) {
+			continue;
+		}
+
+		int num_tickets = p.tickets[idx];
+		int num_ticks = p.ticks[idx];
+		printf(1, "Num tickets: %d, num of scheduler ticks assigned: %d\n", num_tickets, num_ticks);
+		break;
+	}
+}
+
 int
 main(void)
 {
-  printf(1, "My first xv6 program\n");
-  struct pstat p;
-  int res = getpinfo(&p);
-  printf(1, "getpinfo status is %d\n", res);
-  printf(1, "size of pstat struct is  %d\n", sizeof(p));
-  printf(1, "size of res is  %d\n", sizeof(res));
+  int mypid = getpid();
+  printf(1, "my pid is %d\n", mypid);
 
-  printf(1, "Increasing num tickets... of this process\n");
+  pid_info(mypid);
 
-  res = settickets(3);
-  printf(1, "settickets res is  %d\n", res);
+  printf(1, "Increasing num tickets of this process\n");
+
+  if (settickets(3) != 0) {
+	  printf(1, "failed to set new ticket number\n");
+	  exit();
+  }
+
+  pid_info(mypid);
 
   exit();
 }

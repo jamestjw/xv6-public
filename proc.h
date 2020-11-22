@@ -63,3 +63,4 @@ struct proc {
 //
 
 void getpinfo(struct pstat *);
+void settickets(int);

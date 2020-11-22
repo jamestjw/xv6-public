@@ -117,7 +117,8 @@ sys_settickets(void) {
 	// check if number of tickets is not realistic
 	if (num_tickets < 1)
 		return -1;
-
+	
+	settickets(num_tickets);
 	// return 0 whenever successful
 	return 0;
 }
