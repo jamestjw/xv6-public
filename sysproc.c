@@ -107,3 +107,17 @@ sys_getpinfo(void) {
 	return 0;
 }
 
+// sets the number of tickets of the calling process
+int
+sys_settickets(void) {
+	int num_tickets;
+	if(argint(0, &num_tickets) < 0)
+		return -1;
+
+	// check if number of tickets is not realistic
+	if (num_tickets < 1)
+		return -1;
+
+	// return 0 whenever successful
+	return 0;
+}

@@ -11,6 +11,7 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  int total_tickets;
 } ptable;
 
 static struct proc *initproc;
@@ -89,6 +90,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+  // initialising lottery tickets
+  p->tickets = 1;
+  p->ticks = 0;
 
   release(&ptable.lock);
 
@@ -554,5 +559,25 @@ getpinfo(struct pstat *procstat) {
 		}
 	}
 	 
+	release(&ptable.lock);
+}
+
+// sets the num of tickets for the calling process
+void settickets(int num_tickets) {
+	int original_num_tickets;
+	int difference;
+
+	acquire(&ptable.lock);
+
+	struct proc *curr_proc = myproc();
+
+	original_num_tickets = curr_proc->tickets;
+	difference = num_tickets - original_num_tickets;
+
+	// assign new ticket num to process
+	curr_proc->tickets = num_tickets;
+	// update the total num of tickets given out in the ptable
+	ptable.total_tickets += difference;
+
 	release(&ptable.lock);
 }

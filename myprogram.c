@@ -11,7 +11,12 @@ main(void)
   int res = getpinfo(&p);
   printf(1, "getpinfo status is %d\n", res);
   printf(1, "size of pstat struct is  %d\n", sizeof(p));
-  printf(1, "size of res struct is  %d\n", sizeof(res));
+  printf(1, "size of res is  %d\n", sizeof(res));
+
+  printf(1, "Increasing num tickets... of this process\n");
+
+  res = settickets(3);
+  printf(1, "settickets res is  %d\n", res);
 
   exit();
 }
